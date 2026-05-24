@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 
-from src.ai.ppt_dedup import clean_ppt_text
+from src.ai.ppt_dedup import clean_ppt_text, dedup_text_subset
 
 BUCKET_SIZE_SEC = 600  # 10 minutes
 
@@ -116,7 +116,7 @@ def assemble(
     Returns:
         (assembled_text, mode) where mode is 'bucketed' or 'flat'.
     """
-    pages = ppt_pages or []
+    pages = dedup_text_subset(ppt_pages or [])
     if transcript_segments:
         return assemble_bucketed(transcript_segments, pages), "bucketed"
     return assemble_flat(transcript or "", pages), "flat"

@@ -317,6 +317,89 @@ def clean_ppt_text(text: str) -> str:
     return "\n".join(kept)
 
 
+# ── Text subset dedup (post-OCR, pre-prompt) ──────────────────────────────────
+# Removes pages whose text is a near-subset of a nearby page — these are
+# typically intermediate frames from PPT animation reveal (one bullet at a
+# time, progressive formula disclosure, etc.).  Operates on a sliding window
+# of recently-seen pages with directional containment (not symmetric Jaccard).
+
+_SUBSET_CONFIG = {
+    "window": 8,
+    "ngram_n": 3,
+    "containment_threshold": 0.85,
+    "min_length_ratio": 1.10,
+    "protect_min_chars": 30,
+}
+
+
+def _normalize_subset(s: str) -> str:
+    """Light normalisation: lowercase, fullwidth→halfwidth, collapse space."""
+    s = s.lower()
+    s = s.replace("　", " ").replace("�", "").replace("\xa0", " ")
+    return " ".join(s.split())
+
+
+def _ngrams(t: str, n: int = 3) -> set[str]:
+    return {t[i:i+n] for i in range(max(1, len(t)-n+1))}
+
+
+def dedup_text_subset(pages: list[dict]) -> list[dict]:
+    """Sliding-window text subset dedup for PPT OCR pages.
+
+    Uses directional 3-gram containment to detect pages whose text is
+    a near-subset of a nearby page (common with PPT animation reveals).
+    No line-level heuristics — OCR line breaks are unreliable.
+
+    ``pages``: list of dicts, each with at least a ``text`` key.
+    Returns filtered list with near-subset pages removed.
+    """
+    cfg = _SUBSET_CONFIG
+
+    # Pre-normalize + compute 3-gram sets
+    texts = [_normalize_subset(p.get("text") or "") for p in pages]
+    ng_sets = [_ngrams(t, cfg["ngram_n"]) for t in texts]
+    lengths = [len(t) for t in texts]
+
+    keep = [True] * len(pages)
+
+    for idx in range(1, len(pages)):
+        # Sliding window: only consider last ``window`` *kept* pages
+        window_start = max(0, idx - cfg["window"])
+
+        for old_idx in range(window_start, idx):
+            if not keep[old_idx]:
+                continue
+
+            # Determine shorter vs longer
+            if lengths[idx] < lengths[old_idx]:
+                short, long = idx, old_idx
+            else:
+                short, long = old_idx, idx
+
+            # Protection: very short pages
+            effective_threshold = cfg["containment_threshold"]
+            if lengths[short] < cfg["protect_min_chars"]:
+                effective_threshold = 0.95
+
+            # Directional containment
+            if not ng_sets[short]:
+                continue
+            containment = len(ng_sets[short] & ng_sets[long]) / len(ng_sets[short])
+            length_ratio = lengths[long] / max(lengths[short], 1)
+
+            if containment < effective_threshold or length_ratio < cfg["min_length_ratio"]:
+                continue
+
+            # Confirmed: short is a subset of long
+            if short == idx:
+                keep[idx] = False      # new page is subset → discard new
+            else:
+                keep[old_idx] = False  # old page is subset → delete old
+            break  # one decision per new page
+
+    return [p for p, k in zip(pages, keep) if k]
+
+
 def normalize_for_match(text: str) -> str:  # noqa: D401  exported wrapper
     """Public alias for tests / debugging."""
     return _normalize_for_match(text)
