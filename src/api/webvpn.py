@@ -199,12 +199,10 @@ class WebVPNSession:
         vpn_url = get_vpn_url(casapi_url)
 
         # Follow redirect chain to reach IDP login page and extract lck.
-        # The CAS gateway intermittently returns a 200 interstitial or a
-        # 302 to a `/login`-shaped page right after a successful WebVPN
-        # login.  Both are transient — chase the full redirect chain (lck
-        # often appears mid-chain even when an intermediate hop looks
-        # like a stale-session bounce) and retry a few times before
-        # letting login_with_retry() waste a full WebVPN re-login.
+        # The WebVPN proxy sometimes fails to recognise a freshly-created
+        # session (~40% cold).  When that happens we let login_with_retry()
+        # in main.py re-login from scratch — a cold session stays cold no
+        # matter how many times you poke it.
         import time as _time
         lck = None
         last_locations: list[str] = []
@@ -597,11 +595,7 @@ class WebVPNSession:
         return ticket_url
 
     def _establish_session(self, ticket_url: str):
-        """Step 7: Follow the ticket URL to establish WebVPN session.
-
-        The WebVPN server can be very slow. We first try without following
-        redirects to capture the session cookie quickly, then verify.
-        """
+        """Step 7: Follow the ticket URL to establish WebVPN session."""
         for attempt in range(3):
             try:
                 resp = self.session.get(
@@ -614,8 +608,6 @@ class WebVPNSession:
                     f"Failed to establish WebVPN session (status={resp.status_code})"
                 )
             except requests.exceptions.Timeout:
-                # Check if session was established despite timeout
-                # (server may have set cookies before the timeout)
                 has_ticket = any(
                     "wengine_vpn_ticket" in c.name
                     for c in self.session.cookies
