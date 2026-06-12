@@ -385,7 +385,7 @@
         <!-- Prev / next lecture nav (foot of detail view).  Wraps within the
              current course's lecture list, in the same order the lectures
              page renders.  Hidden on the only/last/first lecture as
-             appropriate; respects sub_id ordering. -->
+             appropriate; respects chronological (sub_title) ordering. -->
         <nav class="mt-8 pt-4 border-t border-gray-100 flex items-stretch gap-2 text-sm">
           <button @click="gotoPrevLecture()"
                   :disabled="!prevLecture()"

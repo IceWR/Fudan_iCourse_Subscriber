@@ -387,8 +387,9 @@ document.addEventListener("alpine:init", () => {
     openLecture(id) { this.navigate("detail", { subId: id }); },
 
     /* Prev/next within the current course's lecture list.  Lectures are
-       ordered ascending by sub_id (matches the lectures view), so "prev"
-       is the lecture at index-1 and "next" is at index+1. */
+       ordered chronologically (parsed from sub_title; see db.js
+       _lectureOrderKey), matching the lectures view, so "prev" is the
+       lecture at index-1 and "next" is at index+1. */
     _currentLectureIndex() {
       if (!this.currentLecture || !this.lectures) return -1;
       return this.lectures.findIndex(

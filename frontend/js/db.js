@@ -166,12 +166,44 @@ function _getCourses() {
   `);
 }
 
+// Sort key parsed straight from sub_title — we deliberately do NOT trust the
+// `date` column. `date` is itself just substr(sub_title,1,10) on the backend
+// and is inconsistently back-filled: unprocessed lectures often ship with an
+// empty `date`, and `ORDER BY date` then floats that whole block ahead of the
+// populated rows (the cause of the two-run, out-of-chronological-order list).
+// Parsing sub_title here gives a reliable chronological order regardless.
+//   "2026-03-09第6-8节" -> { dateNum: 20260309, period: 6 }
+function _lectureOrderKey(subTitle) {
+  var s = String(subTitle || "");
+  var dm = s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  var dateNum = dm
+    ? parseInt(dm[1], 10) * 10000 + parseInt(dm[2], 10) * 100 + parseInt(dm[3], 10)
+    : null;
+  var pm = s.match(/第\s*(\d+)/);  // first period number, e.g. 第11-12节 -> 11
+  var period = pm ? parseInt(pm[1], 10) : 0;
+  return { dateNum: dateNum, period: period, raw: s };
+}
+
 function _getLectures(courseId) {
   const rows = _queryAll(`
     SELECT sub_id, sub_title, date, summary, processed_at,
            error_stage, error_msg, summary_model, transcript
-    FROM lectures WHERE course_id = ? ORDER BY date ASC
+    FROM lectures WHERE course_id = ?
   `, [courseId]);
+  // Chronological ascending (earliest first); 第N-M节 breaks intra-day ties so
+  // a morning session sorts before an afternoon one. Lectures with no parseable
+  // date in their sub_title sort last (their position is genuinely unknown).
+  rows.sort(function (a, b) {
+    var ka = _lectureOrderKey(a.sub_title), kb = _lectureOrderKey(b.sub_title);
+    if (ka.dateNum === null || kb.dateNum === null) {
+      if (ka.dateNum === null && kb.dateNum === null)
+        return ka.raw < kb.raw ? -1 : (ka.raw > kb.raw ? 1 : 0);
+      return ka.dateNum === null ? 1 : -1;
+    }
+    if (ka.dateNum !== kb.dateNum) return ka.dateNum - kb.dateNum;
+    if (ka.period !== kb.period) return ka.period - kb.period;
+    return ka.raw < kb.raw ? -1 : (ka.raw > kb.raw ? 1 : 0);
+  });
   return rows.map((r) => {
     r.state = _deriveState(r);
     delete r.transcript;
