@@ -139,7 +139,12 @@ async function _attachShard(shardBytes) {
 function _deriveState(row) {
   if (row.error_stage) return "failed";
   if (row.summary && row.processed_at) return "ready";
-  if (row.transcript && !row.summary) return "processing";
+  // Processed, no summary, no error = a lecture the backend permanently
+  // skipped (no playable video / no audio stream / empty transcript) and
+  // marked done. Distinct from "waiting" (enqueued, not yet run) so these
+  // don't show as perpetually pending in the UI.
+  if (row.processed_at) return "skipped";
+  if (row.transcript) return "processing";
   return "waiting";
 }
 

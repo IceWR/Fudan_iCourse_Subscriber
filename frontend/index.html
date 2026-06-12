@@ -306,11 +306,13 @@
                     'badge-ready': lec.state === 'ready',
                     'badge-processing': lec.state === 'processing',
                     'badge-waiting': lec.state === 'waiting',
+                    'badge-skipped': lec.state === 'skipped',
                     'badge-failed': lec.state === 'failed'
                   }"
                   x-text="lec.state === 'ready' ? 'Ready' :
                           lec.state === 'processing' ? 'Summarizing…' :
                           lec.state === 'waiting' ? 'Waiting' :
+                          lec.state === 'skipped' ? '无内容' :
                           'Failed: ' + (lec.error_stage || 'unknown')"></span>
           </div>
           <!-- Preview snippet for ready lectures -->
