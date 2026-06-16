@@ -410,13 +410,31 @@ class Emailer:
         # Retry with exponential backoff
         for attempt in range(3):
             try:
-                with smtplib.SMTP_SSL(self.host, self.port) as server:
-                    server.login(self.sender, self.password)
-                    server.sendmail(self.sender, self.receiver, msg.as_string())
+                print(
+                    f"[Emailer] SMTP host={self.host} port={self.port} "
+                    f"starttls={config.SMTP_USE_STARTTLS} "
+                    f"sender_domain={self.sender.split('@')[-1]} "
+                    f"receiver_domain={self.receiver.split('@')[-1]}"
+                )
+        
+                if config.SMTP_USE_STARTTLS:
+                    with smtplib.SMTP(self.host, self.port, timeout=60) as server:
+                        server.ehlo()
+                        server.starttls()
+                        server.ehlo()
+                        server.login(self.sender, self.password)
+                        server.sendmail(self.sender, [self.receiver], msg.as_string())
+                else:
+                    with smtplib.SMTP_SSL(self.host, self.port, timeout=60) as server:
+                        server.ehlo()
+                        server.login(self.sender, self.password)
+                        server.sendmail(self.sender, [self.receiver], msg.as_string())
+        
                 print(f"[Emailer] Sent: {subject}")
                 return True
+        
             except Exception as e:
-                print(f"[Emailer] Attempt {attempt + 1}/3 failed: {e}")
+                print(f"[Emailer] Attempt {attempt + 1}/3 failed: {type(e).__name__}: {e!r}")
                 if attempt < 2:
                     time.sleep(2 ** attempt)
 
