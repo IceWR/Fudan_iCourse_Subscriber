@@ -372,7 +372,7 @@ class Emailer:
                     f"<small>({escape(lec['date'])})</small></h3>"
                 )
                 body_parts.append(
-                    _md_to_html(lec["summary"], cid_images=cid_images)
+                    _md_to_html(lec["summary"], cid_images=None)
                 )
                 body_parts.append("<hr>")
 
