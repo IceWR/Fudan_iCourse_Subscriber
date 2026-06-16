@@ -217,11 +217,21 @@ def _send_email(emailer: Emailer | None, db: Database, reporter: Reporter,
     if not (emailer and email_items):
         return
     try:
-        reporter.email_summary(len(email_items))
-        if emailer.send(email_items):
-            db.mark_emailed_batch([item["sub_id"] for item in email_items])
+    reporter.email_summary(len(email_items))
+
+    sent_ids = []
+    batch_size = 1
+
+    for i in range(0, len(email_items), batch_size):
+        batch = email_items[i:i + batch_size]
+        if emailer.send(batch):
+            sent_ids.extend([item["sub_id"] for item in batch])
         else:
             reporter.email_failed()
+
+    if sent_ids:
+        db.mark_emailed_batch(sent_ids)
+
     except Exception:
         reporter.info("[Email] Failed to send:")
         traceback.print_exc()
